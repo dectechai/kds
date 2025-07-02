@@ -37,12 +37,12 @@ jobs:
           Write-Host "User $username already exists"
         } catch {
           $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
-          New-LocalUser -Name $username -Password $securePassword -FullName "RDP User" -Description "User for RDP access"
+          New-LocalUser -Name $username -Password $securePassword -FullName "RDP User"
           Write-Host "✅ Created user: $username"
         }
         Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username -ErrorAction SilentlyContinue
         Add-LocalGroupMember -Group "Administrators" -Member $username -ErrorAction SilentlyContinue
-        Write-Host "✅ User $username has been configured"
+        Write-Host "✅ User configured for RDP"
       shell: powershell
 
     - name: Download and Install ngrok
@@ -59,52 +59,57 @@ jobs:
         Write-Host "✅ ngrok installed"
       shell: powershell
 
-    - name: Configure ngrok
+    - name: Set ngrok Authtoken
       run: |
         C:\ngrok\ngrok.exe config add-authtoken 2zJA7O7OMu7kjdBroaU9YktZK7P_38UpMAmtEJuext6ymq9Qa
         Write-Host "✅ ngrok authtoken set"
       shell: powershell
 
-    - name: Start ngrok Tunnel and Output RDP Info
+    - name: Start ngrok and Show RDP Info
       run: |
-        Start-Process -FilePath "C:\ngrok\ngrok.exe" -ArgumentList "tcp", "3389" -WindowStyle Hidden
-        Start-Sleep -Seconds 10
+        Write-Host "🚀 Starting ngrok tunnel on port 3389..."
 
-        try {
-          $ngrokApi = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels"
-          $tunnel = $ngrokApi.tunnels | Where-Object { $_.proto -eq "tcp" }
+        $ngrokOutput = & "C:\ngrok\ngrok.exe" tcp 3389 --log stdout
+        $publicUrl = ($ngrokOutput | Select-String -Pattern "tcp://.*").Matches.Value
 
-          if ($tunnel) {
-            $host = $tunnel.public_url -replace "tcp://", ""
-            $parts = $host -split ":"
-            $ngrokHost = $parts[0]
-            $ngrokPort = $parts[1]
-            Write-Host "============================================"
-            Write-Host "🎉 Windows 10 RDP is now accessible!"
-            Write-Host "RDP Host: $ngrokHost"
-            Write-Host "RDP Port: $ngrokPort"
-            Write-Host "Username: ${{ github.event.inputs.rdp_username }}"
-            Write-Host "Password: ${{ github.event.inputs.rdp_password }}"
-            Write-Host "============================================"
-            "RDP Details:`nHost: $ngrokHost`nPort: $ngrokPort`nUsername: ${{ github.event.inputs.rdp_username }}`nPassword: ${{ github.event.inputs.rdp_password }}" | Out-File -FilePath rdp_connection_info.txt -Encoding UTF8
-          } else {
-            Write-Host "❌ ngrok tunnel not found"
-            exit 1
-          }
-        } catch {
-          Write-Host "❌ Error: $_"
+        if ($publicUrl) {
+          $parts = $publicUrl -replace "tcp://", "" -split ":"
+          $ngrokHost = $parts[0]
+          $ngrokPort = $parts[1]
+
+          Write-Host "============================================"
+          Write-Host "🎉 Windows 10 RDP is now accessible!"
+          Write-Host "RDP Host: $ngrokHost"
+          Write-Host "RDP Port: $ngrokPort"
+          Write-Host "Username: ${{ github.event.inputs.rdp_username }}"
+          Write-Host "Password: ${{ github.event.inputs.rdp_password }}"
+          Write-Host "============================================"
+
+          $connectionInfo = @"
+Windows 10 RDP Access
+
+Host: $ngrokHost
+Port: $ngrokPort
+Username: ${{ github.event.inputs.rdp_username }}
+Password: ${{ github.event.inputs.rdp_password }}
+
+Use with: mstsc /v:$ngrokHost:$ngrokPort
+"@
+          $connectionInfo | Out-File -FilePath rdp_connection_info.txt -Encoding UTF8
+        } else {
+          Write-Host "❌ Failed to extract ngrok public URL"
           exit 1
         }
       shell: powershell
 
-    - name: Keep Session Alive (6h)
+    - name: Keep Session Alive (6 Hours)
       run: |
         $end = (Get-Date).AddHours(6)
         while ((Get-Date) -lt $end) {
-          Write-Host "💓 Session alive - $(Get-Date)"
+          Write-Host "💓 RDP session alive - $(Get-Date)"
           Start-Sleep -Seconds 300
         }
-        Write-Host "⏰ 6 hour session ended"
+        Write-Host "🕒 Session ended"
       shell: powershell
 
     - name: Upload RDP Info
