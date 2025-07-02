@@ -128,20 +128,16 @@ jobs:
             Write-Host "============================================"
             
             # Also save connection info to file
-            $connectionInfo = @"
-Windows 10 RDP Connection Details
-=================================
-Host: $ngrokHost
-Port: $ngrokPort
-Username: ${{ github.event.inputs.rdp_username }}
-Password: ${{ github.event.inputs.rdp_password }}
-
-Connection Command:
-mstsc /v:${ngrokHost}:${ngrokPort}
-
-Web Interface:
-http://localhost:4040 (ngrok web interface)
-"@
+            $connectionInfo = "Windows 10 RDP Connection Details`n"
+            $connectionInfo += "=================================`n"
+            $connectionInfo += "Host: $ngrokHost`n"
+            $connectionInfo += "Port: $ngrokPort`n"
+            $connectionInfo += "Username: ${{ github.event.inputs.rdp_username }}`n"
+            $connectionInfo += "Password: ${{ github.event.inputs.rdp_password }}`n`n"
+            $connectionInfo += "Connection Command:`n"
+            $connectionInfo += "mstsc /v:${ngrokHost}:${ngrokPort}`n`n"
+            $connectionInfo += "Web Interface:`n"
+            $connectionInfo += "http://localhost:4040 (ngrok web interface)`n"
             $connectionInfo | Out-File -FilePath "rdp_connection_info.txt" -Encoding UTF8
             
           } else {
